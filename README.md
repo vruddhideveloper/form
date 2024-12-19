@@ -1,4 +1,3 @@
-
 import csv
 import os
 import numpy as np
@@ -33,11 +32,10 @@ class LatencyProcessor:
                     writer = csv.writer(f)
                     writer.writerow(csv_info['headers'])
 
-    def save_stats(self, latency_data, logname, description, instance_name, output_func=print):
-        """Process and save latency statistics"""
+    def process_latency_stats(self, latency_data, description, instance_name):
+        """Process latency statistics without request count"""
         if len(latency_data) == 0:
-            print(f'No request-response in the {logname}')
-            return
+            return None
 
         try:
             arr = np.array(latency_data)
@@ -58,10 +56,7 @@ class LatencyProcessor:
                 latency_value = np.percentile(arr, p)
                 latency.append(latency_value)
 
-            # Get request count
-            req_count = len(arr)
-
-            # Append data to respective CSV files
+            # Determine which file to write to based on description
             if description == 'CIT internal: Response out - Request in':
                 self.append_data_to_csv(
                     self.csv_info['lc_latency']['filename'],
@@ -72,16 +67,20 @@ class LatencyProcessor:
                     self.csv_info['overall_latency']['filename'],
                     [current_date, instance_name] + latency
                 )
-            
-            # Write request count
-            self.append_data_to_csv(
-                self.csv_info['request_count']['filename'],
-                [current_date, instance_name, req_count]
-            )
+
+            return current_date  # Return date for request count processing
 
         except Exception as e:
             print('error:', e)
             print('')
+            return None
+
+    def save_request_count(self, total_requests, instance_name, current_date):
+        """Save request count separately"""
+        self.append_data_to_csv(
+            self.csv_info['request_count']['filename'],
+            [current_date, instance_name, total_requests]
+        )
 
     def append_data_to_csv(self, filename, data):
         """Append a row of data to specified CSV file"""
@@ -102,20 +101,23 @@ def main():
     if '-c' in sys.argv:
         try:
             # Process CIT latency data
-            processor.save_stats(
+            current_date = processor.process_latency_stats(
                 CIT_LATENCY_ARR, 
-                args.all_messages_log, 
                 'CIT internal: Response out - Request in',
                 args.instance_name
             )
             
             # Process total latency data
-            processor.save_stats(
+            processor.process_latency_stats(
                 TOTAL_LATENCY_ARR, 
-                args.all_messages_log, 
                 'CIT response out - API request out',
                 args.instance_name
             )
+            
+            # Save request count only once
+            if current_date:
+                req_count = len(CIT_LATENCY_ARR)  # or use TOTAL_LATENCY_ARR based on your requirement
+                processor.save_request_count(req_count, args.instance_name, current_date)
             
             print("####### ALL DONE #######")
             
