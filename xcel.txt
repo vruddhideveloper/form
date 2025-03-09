@@ -1,0 +1,114 @@
+Sub AMC_Hedging_instructions_T1_email()
+    Dim outlook As Object, newEmail As Object
+    Dim xInspect As Object, pageEditor As Object
+    Dim wsHedging As Worksheet, wsBaseIndex As Worksheet
+    Dim tempWS1 As Worksheet, tempWS2 As Worksheet
+    Dim lastRowHedging As Long, lastRowBaseIndex As Long
+    Dim cell As Range
+    
+    Application.ScreenUpdating = False
+
+    ' Initialize Outlook
+    Set outlook = CreateObject("Outlook.Application")
+    Set newEmail = outlook.CreateItem(0)
+
+    ' Get worksheets
+    Set wsHedging = Worksheets("Hedging Instructions")
+    Set wsBaseIndex = Worksheets("Hedging Instructions Base Index")
+
+    ' Find last row in each sheet
+    lastRowHedging = wsHedging.Cells(Rows.Count, 1).End(xlUp).Row
+    lastRowBaseIndex = wsBaseIndex.Cells(Rows.Count, 1).End(xlUp).Row
+
+    ' Create temporary worksheets
+    Set tempWS1 = ThisWorkbook.Sheets.Add
+    Set tempWS2 = ThisWorkbook.Sheets.Add
+
+    ' Copy data without modifying the original sheet
+    wsHedging.Range("A1:H" & lastRowHedging).Copy
+    tempWS1.Range("A1").PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+
+    wsHedging.Range("J1:M" & lastRowHedging).Copy
+    tempWS1.Range("I1").PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+
+    wsBaseIndex.Range("A1:H" & lastRowBaseIndex).Copy
+    tempWS2.Range("A1").PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+
+    wsBaseIndex.Range("J1:M" & lastRowBaseIndex).Copy
+    tempWS2.Range("I1").PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+
+    ' **Apply Round Up to "Indic Notional (local)" & "Indic Notional (USD)"**
+    ' Column J in source -> Column I in temp (for both sheets)
+    For Each cell In tempWS1.Range("I2:I" & lastRowHedging)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.RoundUp(cell.Value, 0)
+    Next cell
+    For Each cell In tempWS1.Range("J2:J" & lastRowHedging)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.RoundUp(cell.Value, 0)
+    Next cell
+
+    For Each cell In tempWS2.Range("I2:I" & lastRowBaseIndex)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.RoundUp(cell.Value, 0)
+    Next cell
+    For Each cell In tempWS2.Range("J2:J" & lastRowBaseIndex)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.RoundUp(cell.Value, 0)
+    Next cell
+
+    ' Ensure no decimals
+    tempWS1.Range("I:J").NumberFormat = "0"
+    tempWS2.Range("I:J").NumberFormat = "0"
+
+    ' Autofit columns to prevent "####" display
+    tempWS1.Columns.AutoFit
+    tempWS2.Columns.AutoFit
+
+    ' **Sending the Email**
+    With newEmail
+        .To = Worksheets("Index").Range("B16").Text
+        .CC = Worksheets("Index").Range("B17").Text
+        .BCC = ""
+        .Subject = Worksheets("Index").Range("B18").Text
+        .Body = Worksheets("Index").Range("B20").Text
+        .Display
+
+        ' Get Word Editor for Email Formatting
+        Set xInspect = newEmail.GetInspector
+        Set pageEditor = xInspect.WordEditor
+
+        ' Copy "Index" Section
+        Worksheets("Index").Range("A22:Z24").Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat 16 ' wdPasteDefault
+
+        ' Copy rounded "Hedging Instructions" table (Aggregated per ISIN)
+        tempWS1.UsedRange.Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat 16 ' wdPasteDefault
+
+        ' Copy "Index" section
+        Worksheets("Index").Range("A24:Z26").Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat 16 ' wdPasteDefault
+
+        ' Copy rounded "Hedging Instructions Base Index" table (Aggregated per Base Index)
+        tempWS2.UsedRange.Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat 16 ' wdPasteDefault
+
+        ' Cleanup Temporary Sheets
+        Application.DisplayAlerts = False
+        tempWS1.Delete
+        tempWS2.Delete
+        Application.DisplayAlerts = True
+
+        ' .Send ' Uncomment to send directly
+    End With
+
+    ' Cleanup Objects
+    Set newEmail = Nothing
+    Set outlook = Nothing
+    Application.ScreenUpdating = True
+End Sub
