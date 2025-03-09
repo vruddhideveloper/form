@@ -1,0 +1,71 @@
+Sub AMC_Hedging_instructions_T1_email()
+
+Dim outlook As Object, newEmail As Object, xInspect As Object, pageEditor As Object
+Dim wsHedging As Worksheet, wsBaseIndex As Worksheet
+Dim rngHedging As Range, rngBaseIndex As Range
+Dim LastRowHedging As Long, LastRowBaseIndex As Long
+
+Application.ScreenUpdating = False
+
+' Initialize Outlook
+Set outlook = CreateObject("Outlook.Application")
+Set newEmail = outlook.CreateItem(0)
+
+' Define worksheets
+Set wsHedging = Worksheets("Hedging Instructions")
+Set wsBaseIndex = Worksheets("Hedging Instructions Base Index")
+
+' Get last rows
+LastRowHedging = wsHedging.Range("A" & Rows.Count).End(xlUp).Row
+LastRowBaseIndex = wsBaseIndex.Range("A" & Rows.Count).End(xlUp).Row
+
+' Define ranges to copy (exclude "Indic Notional (local)" column)
+' Hedging Instructions: Exclude Column I (9th column)
+Set rngHedging = Union( _
+    wsHedging.Range("A21:H" & LastRowHedging), _
+    wsHedging.Range("J21:L" & LastRowHedging) _
+)
+
+' Hedging Instructions Base Index: Exclude Column J (10th column)
+Set rngBaseIndex = Union( _
+    wsBaseIndex.Range("A1:I" & LastRowBaseIndex), _
+    wsBaseIndex.Range("K1:M" & LastRowBaseIndex) _
+)
+
+' Build email
+With newEmail
+    .To = Worksheets("Index").Range("B16").Text
+    .CC = Worksheets("Index").Range("B17").Text
+    .Subject = Worksheets("Index").Range("B18").Text
+    .Body = Worksheets("Index").Range("B20").Text
+    .Display
+
+    Set xInspect = .GetInspector
+    Set pageEditor = xInspect.WordEditor
+
+    ' Copy headers and text from Index sheet
+    Worksheets("Index").Range("A22:A24").Copy
+    pageEditor.Application.Selection.Paste
+
+    ' Copy Hedging Instructions table (rounded USD values)
+    rngHedging.Copy
+    pageEditor.Application.Selection.Paste
+
+    ' Copy separator text
+    Worksheets("Index").Range("A24:A26").Copy
+    pageEditor.Application.Selection.Paste
+
+    ' Copy Hedging Instructions Base Index table (rounded USD values)
+    rngBaseIndex.Copy
+    pageEditor.Application.Selection.Paste
+
+End With
+
+' Cleanup
+Set pageEditor = Nothing
+Set xInspect = Nothing
+Set newEmail = Nothing
+Set outlook = Nothing
+Application.ScreenUpdating = True
+
+End Sub
