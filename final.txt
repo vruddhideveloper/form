@@ -1,0 +1,79 @@
+Sub AMC_Hedging_instructions_T1_email()
+    Dim outlook As Object
+    Dim newEmail As Object
+    Dim xInspect As Object
+    Dim pageEditor As Object
+    Dim LastRowhi As Long, LastRowBase As Long
+    Dim wsHedging As Worksheet, wsBaseIndex As Worksheet
+    Dim rng As Range, cell As Range
+
+    Application.ScreenUpdating = False
+
+    ' Set worksheets
+    Set wsHedging = Worksheets("Hedging Instructions")
+    Set wsBaseIndex = Worksheets("Hedging Instructions Base Index")
+
+    ' Get last row numbers
+    LastRowhi = wsHedging.Range("A" & wsHedging.Rows.Count).End(xlUp).Row
+    LastRowBase = wsBaseIndex.Range("A" & wsBaseIndex.Rows.Count).End(xlUp).Row
+
+    ' ROUND UP "Indic Notional (Local)" ONLY for the email (Column J)
+    For Each cell In wsHedging.Range("J2:J" & LastRowhi)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.Ceiling(cell.Value, 1)
+    Next cell
+
+    ' ROUND UP "Indic Notional (Local)" in Base Index table
+    For Each cell In wsBaseIndex.Range("J2:J" & LastRowBase)
+        If IsNumeric(cell.Value) Then cell.Value = Application.WorksheetFunction.Ceiling(cell.Value, 1)
+    Next cell
+
+    ' Send email
+    Set outlook = CreateObject("Outlook.Application")
+    Set newEmail = outlook.CreateItem(0)
+
+    With newEmail
+        .To = Worksheets("Index").Range("B16").Text
+        .CC = Worksheets("Index").Range("B17").Text
+        .BCC = ""
+        .Subject = Worksheets("Index").Range("B18").Text
+        .Body = Worksheets("Index").Range("B20").Text
+        .Display
+
+        Set xInspect = newEmail.GetInspector
+        Set pageEditor = xInspect.WordEditor
+
+        ' Copying email body content with table formatting
+        Worksheets("Index").Range("A22:A24").Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat (wdFormatPlainText)
+
+        ' Copy Hedging Instructions (Columns A to M excluding I)
+        wsHedging.Range("A2:H" & LastRowhi).Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat (wdFormatPlainText)
+
+        wsHedging.Range("J:M" & LastRowhi).Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat (wdFormatPlainText)
+
+        ' Copy Base Index Table (Columns A to M excluding I)
+        wsBaseIndex.Range("A1:H" & LastRowBase).Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat (wdFormatPlainText)
+
+        wsBaseIndex.Range("J:M" & LastRowBase).Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.End = pageEditor.Application.Selection.Start
+        pageEditor.Application.Selection.PasteAndFormat (wdFormatPlainText)
+        
+    End With
+
+    ' Cleanup
+    Set newEmail = Nothing
+    Set outlook = Nothing
+    Application.ScreenUpdating = True
+End Sub
