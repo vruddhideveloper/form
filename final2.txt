@@ -1,0 +1,85 @@
+Sub Send_Hedging_Email()
+    Dim outlook As Object, newEmail As Object
+    Dim xInspect As Object, pageEditor As Object
+    Dim wsHedging As Worksheet, wsBaseIndex As Worksheet
+    Dim tempWS As Worksheet
+    Dim LastRowHedging As Long, LastRowBase As Long
+    Dim rng As Range, cell As Range
+
+    ' Disable screen updating
+    Application.ScreenUpdating = False
+    
+    ' Set worksheets
+    Set wsHedging = ThisWorkbook.Sheets("Hedging Instructions")
+    Set wsBaseIndex = ThisWorkbook.Sheets("Hedging Instructions Base Index")
+    
+    ' Find last row for each table
+    LastRowHedging = wsHedging.Cells(Rows.Count, "A").End(xlUp).Row
+    LastRowBase = wsBaseIndex.Cells(Rows.Count, "A").End(xlUp).Row
+    
+    ' Create a temporary sheet to store modified values
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Sheets("TempEmail").Delete ' Delete if exists
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+    Set tempWS = ThisWorkbook.Sheets.Add
+    tempWS.Name = "TempEmail"
+
+    ' Copy the headers and data (A:M, excluding I)
+    wsHedging.Range("A1:H1").Copy tempWS.Range("A1")  ' Copy headers (before I)
+    wsHedging.Range("J1:M1").Copy tempWS.Range("I1")  ' Copy headers (after I)
+    wsHedging.Range("A2:H" & LastRowHedging).Copy tempWS.Range("A2")
+    wsHedging.Range("J2:M" & LastRowHedging).Copy tempWS.Range("I2")
+
+    ' Apply CEILING function to Indic Notional columns (local & USD)
+    Set rng = tempWS.Range("J2:J" & LastRowHedging) ' Indic Notional (local)
+    For Each cell In rng
+        If IsNumeric(cell.Value) Then
+            cell.Value = Application.WorksheetFunction.Ceiling(cell.Value, 1)
+        End If
+    Next cell
+
+    Set rng = tempWS.Range("K2:K" & LastRowHedging) ' Indic Notional (USD)
+    For Each cell In rng
+        If IsNumeric(cell.Value) Then
+            cell.Value = Application.WorksheetFunction.Ceiling(cell.Value, 1)
+        End If
+    Next cell
+
+    ' Apply formatting
+    tempWS.Cells.EntireColumn.AutoFit
+    tempWS.Rows(1).Font.Bold = True
+    tempWS.Rows(1).Interior.Color = RGB(0, 51, 102) ' Dark blue header
+    tempWS.Rows(1).Font.Color = RGB(255, 255, 255)  ' White text
+
+    ' ==== Send Email ====
+    Set outlook = CreateObject("Outlook.Application")
+    Set newEmail = outlook.CreateItem(0)
+
+    With newEmail
+        .To = Sheets("Index").Range("B16").Text
+        .CC = Sheets("Index").Range("B17").Text
+        .Subject = Sheets("Index").Range("B18").Text
+        .Body = Sheets("Index").Range("B20").Text
+        .Display
+
+        ' Insert tables
+        Set xInspect = newEmail.GetInspector
+        Set pageEditor = xInspect.WordEditor
+        
+        ' Copy and paste the prepared table
+        tempWS.Range("A1:M" & LastRowHedging).Copy
+        pageEditor.Application.Selection.Start = Len(.Body)
+        pageEditor.Application.Selection.Paste
+    End With
+
+    ' Cleanup
+    Application.DisplayAlerts = False
+    tempWS.Delete
+    Application.DisplayAlerts = True
+    
+    Set newEmail = Nothing
+    Set outlook = Nothing
+    Application.ScreenUpdating = True
+End Sub
